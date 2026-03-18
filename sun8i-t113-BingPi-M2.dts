@@ -1,0 +1,192 @@
+// SPDX-License-Identifier: (GPL-2.0+ OR MIT)
+// Copyright (C) 2022 Arm Ltd.
+/*
+ * Common peripherals and configurations for MangoPi MQ-R boards.
+ * Modified for BingPi-M2 Ethernet support.
+ */
+
+/dts-v1/; 
+
+#include "sun8i-t113s.dtsi"
+#include <dt-bindings/gpio/gpio.h>
+#include <dt-bindings/leds/common.h>
+#include <dt-bindings/interrupt-controller/irq.h>
+
+/ {
+	model = "BingPi-M2";
+	compatible = "allwinner,sun20i-d1", "allwinner,sun8i";
+
+	aliases {
+		serial3 = &uart3;
+		spi1 = &spi1;
+		ethernet0 = &emac;  /* 添加网口别名 */
+	};
+
+	chosen {
+		stdout-path = "serial5:115200n8";
+		bootargs = "mem=128M cma=64M root=/dev/mmcblk0p2 rw init=/sbin/init rootwait console=tty0 console=ttyS3,115200 earlyprintk=sunxi-uart,0x02500c00";
+	};
+
+	leds {
+		compatible = "gpio-leds";
+
+		led-0 {
+			color = <LED_COLOR_ID_BLUE>;
+			function = LED_FUNCTION_STATUS;
+			gpios = <&pio 3 22 GPIO_ACTIVE_LOW>; /* PD22 */
+		};
+	};
+
+	/* board wide 5V supply directly from the USB-C socket */
+	reg_vcc5v: regulator-5v {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-5v";
+		regulator-min-microvolt = <5000000>;
+		regulator-max-microvolt = <5000000>;
+		regulator-always-on;
+	};
+
+	/* SY8008 DC/DC regulator on the board */
+	reg_3v3: regulator-3v3 {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-3v3";
+		regulator-min-microvolt = <3300000>;
+		regulator-max-microvolt = <3300000>;
+		vin-supply = <&reg_vcc5v>;
+	};
+
+	/* SY8008 DC/DC regulator on the board, also supplying VDD-SYS */
+	reg_vcc_core: regulator-core {
+		compatible = "regulator-fixed";
+		regulator-name = "vcc-core";
+		regulator-min-microvolt = <880000>;
+		regulator-max-microvolt = <880000>;
+		vin-supply = <&reg_vcc5v>;
+	};
+
+	/* XC6206 LDO on the board */
+	reg_avdd2v8: regulator-avdd {
+		compatible = "regulator-fixed";
+		regulator-name = "avdd2v8";
+		regulator-min-microvolt = <2800000>;
+		regulator-max-microvolt = <2800000>;
+		vin-supply = <&reg_3v3>;
+	};
+};
+
+&cpu0 {
+	cpu-supply = <&reg_vcc_core>;
+};
+
+&cpu1 {
+	cpu-supply = <&reg_vcc_core>;
+};
+
+&dcxo {
+	clock-frequency = <24000000>;
+};
+
+&ehci1 {
+	status = "okay";
+};
+
+&mmc0 {
+	pinctrl-0 = <&mmc0_pins>;
+	pinctrl-names = "default";
+	vmmc-supply = <&reg_3v3>;
+	cd-gpios = <&pio 5 6 GPIO_ACTIVE_LOW>;
+	disable-wp;
+	bus-width = <4>;
+	status = "okay";
+};
+
+&ohci1 {
+	status = "okay";
+};
+
+&pio {
+	vcc-pb-supply = <&reg_3v3>;
+	vcc-pd-supply = <&reg_3v3>;
+	vcc-pe-supply = <&reg_avdd2v8>;
+	vcc-pf-supply = <&reg_3v3>;
+	vcc-pg-supply = <&reg_3v3>;
+
+	/* --- 新增：网口引脚定义 --- */
+	gmac_pins: gmac-pins {
+		pins = "PG0", "PG1", "PG2", "PG3", "PG4", "PG5",
+		       "PG11", "PG12", "PG13", "PG14", "PG15";
+		function = "emac";
+		drive-strength = <10>;
+	};
+
+	spi1_pins: spi1-pins {
+		pins = "PD11", "PD12", "PD13";
+		function = "spi1";
+		drive-strength = <10>;
+	};
+
+	spi1_cs_pin: spi1-cs-pin {
+		pins = "PD10";
+		function = "spi1";
+		drive-strength = <10>;
+		bias-pull-up;
+	};
+};
+
+&uart3 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&uart3_pb_pins>;
+	status = "okay";
+};
+
+&spi1 {
+	pinctrl-names = "default";
+	pinctrl-0 = <&spi1_pins &spi1_cs_pin>;
+	status = "okay";
+
+	t113_io_spi@0 {
+		compatible = "bingpi,t113-io-spi";
+		reg = <0>;
+		spi-max-frequency = <500000>;
+		bingpi,ai-mode-init = <0xffff>;
+		bingpi,dout-init = <0xffff>;
+		bingpi,word-delay-us = <1000>;
+	};
+};
+
+/* The USB-C socket has its CC pins pulled to GND, so is hardwired as a UFP. */
+&usb_otg {
+	dr_mode = "peripheral";
+	status = "okay";
+};
+
+&usbphy {
+	usb1_vbus-supply = <&reg_vcc5v>;
+	status = "okay";
+};
+
+/* --- 新增：Ethernet MAC 控制器 --- */
+&emac {
+	pinctrl-0 = <&gmac_pins>;
+	pinctrl-names = "default";
+	phy-handle = <&ext_rmii_phy>;
+	phy-mode = "rmii";
+	phy-supply = <&reg_3v3>;
+	status = "okay";
+
+	mdio {
+		#address-cells = <1>;
+		#size-cells = <0>;
+
+		ext_rmii_phy: ethernet-phy@1 {
+			compatible = "ethernet-phy-ieee802.3-c22";
+			/* PHY地址，一般是1，如果不行请尝试改回0 */
+			reg = <1>;
+			
+			/* 复位引脚: PG6 (Bank 6, Pin 6), 低电平有效 */
+			reset-gpios = <&pio 6 6 GPIO_ACTIVE_LOW>; 
+			reset-assert-us = <10000>;
+			reset-deassert-us = <100000>;
+		};
+	};
+};
