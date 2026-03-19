@@ -147,10 +147,7 @@
 	t113_io_spi@0 {
 		compatible = "bingpi,t113-io-spi";
 		reg = <0>;
-		spi-max-frequency = <500000>;
-		bingpi,ai-mode-init = <0xffff>;
-		bingpi,dout-init = <0xffff>;
-		bingpi,word-delay-us = <1000>;
+		spi-max-frequency = <1000000>;
 	};
 };
 

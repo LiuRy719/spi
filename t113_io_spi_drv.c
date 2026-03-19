@@ -18,8 +18,10 @@
 #define T113_IO_SPI_MAX_XFER_WORDS	27
 #define T113_IO_SPI_DEFAULT_SPEED_HZ	500000U
 #define T113_IO_SPI_DUMMY_WORD		0xffff
-#define T113_IO_SPI_DRV_VERSION		"2026-03-18.4"
-#define T113_IO_SPI_DEFAULT_WORD_DELAY_US 1000U
+#define T113_IO_SPI_DRV_VERSION		"2026-03-19.8"
+#define T113_IO_SPI_DEFAULT_WORD_DELAY_US 0U
+#define T113_IO_SPI_WRITE_RETRIES	5
+#define T113_IO_SPI_VERIFY_POLLS	4
 
 #define T113_IO_SPI_CMD_INIT_START	0xA501
 #define T113_IO_SPI_RSP_INIT_ACK	0xA502
@@ -80,6 +82,13 @@ struct t113_io_spi_dev {
 static dev_t t113_io_spi_base_devt;
 static struct class *t113_io_spi_class;
 static DEFINE_IDA(t113_io_spi_minors);
+
+static int t113_io_spi_get_output_state_locked(
+	struct t113_io_spi_dev *tdev,
+	struct t113_io_spi_output_state *out);
+static int t113_io_spi_set_output_state_locked(
+	struct t113_io_spi_dev *tdev,
+	const struct t113_io_spi_output_state *out);
 
 static void t113_io_spi_free(struct kref *ref)
 {
@@ -382,16 +391,12 @@ static int t113_io_spi_set_dout_locked(struct t113_io_spi_dev *tdev, u16 value)
 	if (ret)
 		return ret;
 
-	t113_io_spi_word_delay(tdev);
-
 	ret = t113_io_spi_xfer_word(tdev, value, &rx);
 	if (ret)
 		return ret;
 
 	if (rx != T113_IO_SPI_RSP_SET_DOUT)
 		return -EPROTO;
-
-	t113_io_spi_word_delay(tdev);
 
 	ret = t113_io_spi_xfer_word(tdev, T113_IO_SPI_CMD_SET_DOUT_END, &rx);
 	if (ret)
@@ -401,6 +406,29 @@ static int t113_io_spi_set_dout_locked(struct t113_io_spi_dev *tdev, u16 value)
 		return -EPROTO;
 
 	return 0;
+}
+
+static int t113_io_spi_get_dout_locked(struct t113_io_spi_dev *tdev, u16 *value)
+{
+	u16 rx = 0;
+	int ret;
+
+	ret = t113_io_spi_xfer_word(tdev, T113_IO_SPI_CMD_GET_DOUT, &rx);
+	if (ret)
+		return ret;
+
+	ret = t113_io_spi_xfer_word(tdev, T113_IO_SPI_DUMMY_WORD, &rx);
+	if (ret)
+		return ret;
+
+	*value = rx;
+	return 0;
+}
+
+static int t113_io_spi_set_dout_verified_locked(struct t113_io_spi_dev *tdev,
+						u16 value)
+{
+	return t113_io_spi_set_dout_locked(tdev, value);
 }
 
 static int t113_io_spi_get_input_state_locked(struct t113_io_spi_dev *tdev,
@@ -696,9 +724,7 @@ static long t113_io_spi_ioctl(struct file *file, unsigned int cmd,
 
 	case T113_IO_SPI_IOC_GET_DOUT:
 		mutex_lock(&tdev->lock);
-		ret = t113_io_spi_get_single_reply_locked(tdev,
-							  T113_IO_SPI_CMD_GET_DOUT,
-							  &value);
+		ret = t113_io_spi_get_dout_locked(tdev, &value);
 		mutex_unlock(&tdev->lock);
 		if (ret)
 			return ret;
@@ -710,7 +736,7 @@ static long t113_io_spi_ioctl(struct file *file, unsigned int cmd,
 		if (copy_from_user(&value, argp, sizeof(value)))
 			return -EFAULT;
 		mutex_lock(&tdev->lock);
-		ret = t113_io_spi_set_dout_locked(tdev, value);
+		ret = t113_io_spi_set_dout_verified_locked(tdev, value);
 		mutex_unlock(&tdev->lock);
 		return ret;
 
