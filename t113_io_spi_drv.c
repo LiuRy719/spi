@@ -18,7 +18,7 @@
 #define T113_IO_SPI_MAX_XFER_WORDS	27
 #define T113_IO_SPI_DEFAULT_SPEED_HZ	500000U
 #define T113_IO_SPI_DUMMY_WORD		0xffff
-#define T113_IO_SPI_DRV_VERSION		"2026-03-19.8"
+#define T113_IO_SPI_DRV_VERSION		"2026-03-25.2"
 #define T113_IO_SPI_DEFAULT_WORD_DELAY_US 0U
 #define T113_IO_SPI_WRITE_RETRIES	5
 #define T113_IO_SPI_VERIFY_POLLS	4
@@ -287,7 +287,7 @@ static int t113_io_spi_get_ao_all_locked(struct t113_io_spi_dev *tdev,
 }
 
 static int t113_io_spi_get_ao_ch_locked(struct t113_io_spi_dev *tdev,
-					u8 channel, u16 *value)
+				u8 channel, u16 *value)
 {
 	u16 rx = 0;
 	int ret;
@@ -353,30 +353,31 @@ static int t113_io_spi_set_ao_all_locked(struct t113_io_spi_dev *tdev,
 }
 
 static int t113_io_spi_set_ao_ch_locked(struct t113_io_spi_dev *tdev,
-					u8 channel, u16 value)
+				u8 channel, u16 value)
 {
-	u16 tx[2];
-	u16 rx[2];
+	u16 rx = 0;
 	int ret;
 
 	if (channel >= T113_IO_SPI_AO_CHANNELS)
 		return -EINVAL;
+	if (value > T113_IO_SPI_AO_VALUE_MASK)
+		return -EINVAL;
 
-	ret = t113_io_spi_xfer_word(tdev, T113_IO_SPI_CMD_SET_AO_CH, NULL);
+	ret = t113_io_spi_xfer_word(tdev, T113_IO_SPI_CMD_SET_AO_CH, &rx);
 	if (ret)
 		return ret;
 
-	t113_io_spi_word_delay(tdev);
-
-	tx[0] = value;
-	tx[1] = T113_IO_SPI_CHANNEL_PREFIX | channel;
-
-	ret = t113_io_spi_xfer(tdev, tx, rx, ARRAY_SIZE(tx));
+	ret = t113_io_spi_xfer_word(tdev, value, &rx);
 	if (ret)
 		return ret;
 
-	if (rx[1] != T113_IO_SPI_RSP_SET_AO_CH &&
-	    rx[1] != T113_IO_SPI_RSP_SET_AO_CH_ALT)
+	ret = t113_io_spi_xfer_word(tdev, T113_IO_SPI_CHANNEL_PREFIX | channel,
+				    &rx);
+	if (ret)
+		return ret;
+
+	if (rx != T113_IO_SPI_RSP_SET_AO_CH &&
+	    rx != T113_IO_SPI_RSP_SET_AO_CH_ALT)
 		return -EPROTO;
 
 	return 0;
@@ -1084,7 +1085,7 @@ static void __exit t113_io_spi_exit(void)
 module_init(t113_io_spi_init);
 module_exit(t113_io_spi_exit);
 
-MODULE_AUTHOR("OpenAI Codex");
+MODULE_AUTHOR("LiuRy");
 MODULE_DESCRIPTION("T113 IO SPI protocol driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION(T113_IO_SPI_DRV_VERSION);

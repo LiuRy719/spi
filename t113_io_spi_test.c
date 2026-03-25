@@ -18,6 +18,9 @@ static void usage(const char *prog)
 		"  %s [-D dev] din\n"
 		"  %s [-D dev] dout-get\n"
 		"  %s [-D dev] dout-set <value>\n"
+		"  %s [-D dev] ao-all\n"
+		"  %s [-D dev] ao-ch <channel>\n"
+		"  %s [-D dev] ao-set <channel> <value>\n"
 		"  %s [-D dev] ai-all\n"
 		"  %s [-D dev] ai-ch <channel>\n"
 		"  %s [-D dev] snapshot\n"
@@ -29,10 +32,13 @@ static void usage(const char *prog)
 		"  %s info\n"
 		"  %s din\n"
 		"  %s dout-set 0x0001\n"
+		"  %s ao-all\n"
+		"  %s ao-ch 2\n"
+		"  %s ao-set 2 0x3FFC\n"
 		"  %s ai-ch 3\n"
 		"  %s snapshot\n",
-		prog, prog, prog, prog, prog, prog, prog,
-		prog, prog, prog, prog, prog);
+		prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
+		prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 static int parse_u16(const char *arg, uint16_t *value)
@@ -165,6 +171,52 @@ int main(int argc, char **argv)
 		}
 
 		printf("DOUT set to 0x%04X\n", value);
+	} else if (strcmp(cmd, "ao-all") == 0) {
+		struct t113_io_spi_words8 ao;
+
+		if (ioctl(fd, T113_IO_SPI_IOC_GET_AO_ALL, &ao) < 0) {
+			perror("T113_IO_SPI_IOC_GET_AO_ALL");
+			close(fd);
+			return 1;
+		}
+
+		dump_ao_words(ao.words);
+	} else if (strcmp(cmd, "ao-ch") == 0) {
+		struct t113_io_spi_channel_data data = { 0 };
+
+		if (argc != 2 || parse_u8(argv[1], &data.channel) < 0 ||
+		    data.channel >= T113_IO_SPI_AO_CHANNELS) {
+			usage(argv[0]);
+			close(fd);
+			return 1;
+		}
+
+		if (ioctl(fd, T113_IO_SPI_IOC_GET_AO_CH, &data) < 0) {
+			perror("T113_IO_SPI_IOC_GET_AO_CH");
+			close(fd);
+			return 1;
+		}
+
+		printf("AO[%u] = 0x%04X\n", data.channel, data.value);
+	} else if (strcmp(cmd, "ao-set") == 0) {
+		struct t113_io_spi_channel_data data = { 0 };
+
+		if (argc != 3 || parse_u8(argv[1], &data.channel) < 0 ||
+		    parse_u16(argv[2], &data.value) < 0 ||
+		    data.channel >= T113_IO_SPI_AO_CHANNELS ||
+		    data.value > T113_IO_SPI_AO_VALUE_MASK) {
+			usage(argv[0]);
+			close(fd);
+			return 1;
+		}
+
+		if (ioctl(fd, T113_IO_SPI_IOC_SET_AO_CH, &data) < 0) {
+			perror("T113_IO_SPI_IOC_SET_AO_CH");
+			close(fd);
+			return 1;
+		}
+
+		printf("AO[%u] set to 0x%04X\n", data.channel, data.value);
 	} else if (strcmp(cmd, "ai-all") == 0) {
 		struct t113_io_spi_words16 ai;
 

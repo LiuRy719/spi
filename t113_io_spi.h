@@ -14,6 +14,7 @@
 #define T113_IO_SPI_AI_ERROR_MASK		0x8000
 #define T113_IO_SPI_AI_CURRENT_MODE_MASK	0x4000
 #define T113_IO_SPI_AI_VALUE_MASK		0x3fff
+#define T113_IO_SPI_AO_VALUE_MASK		0x3fff
 
 struct t113_io_spi_words16 {
 	__u16 words[T113_IO_SPI_AI_CHANNELS];
