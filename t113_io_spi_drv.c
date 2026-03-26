@@ -18,10 +18,11 @@
 #define T113_IO_SPI_MAX_XFER_WORDS	27
 #define T113_IO_SPI_DEFAULT_SPEED_HZ	500000U
 #define T113_IO_SPI_DUMMY_WORD		0xffff
-#define T113_IO_SPI_DRV_VERSION		"2026-03-25.2"
+#define T113_IO_SPI_DRV_VERSION		"2026-03-26.1"
 #define T113_IO_SPI_DEFAULT_WORD_DELAY_US 0U
 #define T113_IO_SPI_WRITE_RETRIES	5
 #define T113_IO_SPI_VERIFY_POLLS	4
+#define T113_IO_SPI_AO_CH_SETTLE_US	1000U
 
 #define T113_IO_SPI_CMD_INIT_START	0xA501
 #define T113_IO_SPI_RSP_INIT_ACK	0xA502
@@ -309,7 +310,8 @@ static int t113_io_spi_get_ao_ch_locked(struct t113_io_spi_dev *tdev,
 	if (rx != T113_IO_SPI_RSP_GET_AO_CH)
 		return -EPROTO;
 
-	t113_io_spi_word_delay(tdev);
+	usleep_range(T113_IO_SPI_AO_CH_SETTLE_US,
+		     T113_IO_SPI_AO_CH_SETTLE_US + 200);
 
 	ret = t113_io_spi_xfer_word(tdev, T113_IO_SPI_DUMMY_WORD, &rx);
 	if (ret)
