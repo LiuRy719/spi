@@ -18,7 +18,7 @@
 #define T113_IO_SPI_MAX_XFER_WORDS	27
 #define T113_IO_SPI_DEFAULT_SPEED_HZ	500000U
 #define T113_IO_SPI_DUMMY_WORD		0xffff
-#define T113_IO_SPI_DRV_VERSION		"2026-03-26.1"
+#define T113_IO_SPI_DRV_VERSION		"2026-03-26.2"
 #define T113_IO_SPI_DEFAULT_WORD_DELAY_US 0U
 #define T113_IO_SPI_WRITE_RETRIES	5
 #define T113_IO_SPI_VERIFY_POLLS	4
@@ -322,12 +322,17 @@ static int t113_io_spi_get_ao_ch_locked(struct t113_io_spi_dev *tdev,
 }
 
 static int t113_io_spi_set_ao_all_locked(struct t113_io_spi_dev *tdev,
-					 const u16 *values)
+				 const u16 *values)
 {
 	u16 tx[T113_IO_SPI_AO_CHANNELS + 1];
 	u16 rx[T113_IO_SPI_AO_CHANNELS + 1];
 	size_t i;
 	int ret;
+
+	for (i = 0; i < T113_IO_SPI_AO_CHANNELS; i++) {
+		if (values[i] > T113_IO_SPI_AO_VALUE_MASK)
+			return -EINVAL;
+	}
 
 	ret = t113_io_spi_xfer_word(tdev, T113_IO_SPI_CMD_SET_AO_ALL, NULL);
 	if (ret)

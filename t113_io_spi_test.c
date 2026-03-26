@@ -21,6 +21,7 @@ static void usage(const char *prog)
 		"  %s [-D dev] ao-all\n"
 		"  %s [-D dev] ao-ch <channel>\n"
 		"  %s [-D dev] ao-set <channel> <value>\n"
+		"  %s [-D dev] ao-set-all <v0> <v1> <v2> <v3> <v4> <v5> <v6> <v7>\n"
 		"  %s [-D dev] ai-all\n"
 		"  %s [-D dev] ai-ch <channel>\n"
 		"  %s [-D dev] snapshot\n"
@@ -35,10 +36,11 @@ static void usage(const char *prog)
 		"  %s ao-all\n"
 		"  %s ao-ch 2\n"
 		"  %s ao-set 2 0x3FFC\n"
+		"  %s ao-set-all 0x0000 0x0100 0x0200 0x0300 0x0400 0x0500 0x0600 0x0700\n"
 		"  %s ai-ch 3\n"
 		"  %s snapshot\n",
-		prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
-		prog, prog, prog, prog, prog, prog, prog, prog);
+		prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
+		prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 static int parse_u16(const char *arg, uint16_t *value)
@@ -217,6 +219,32 @@ int main(int argc, char **argv)
 		}
 
 		printf("AO[%u] set to 0x%04X\n", data.channel, data.value);
+	} else if (strcmp(cmd, "ao-set-all") == 0) {
+		struct t113_io_spi_words8 ao = { 0 };
+		int i;
+
+		if (argc != T113_IO_SPI_AO_CHANNELS + 1) {
+			usage(argv[0]);
+			close(fd);
+			return 1;
+		}
+
+		for (i = 0; i < T113_IO_SPI_AO_CHANNELS; i++) {
+			if (parse_u16(argv[i + 1], &ao.words[i]) < 0 ||
+			    ao.words[i] > T113_IO_SPI_AO_VALUE_MASK) {
+				usage(argv[0]);
+				close(fd);
+				return 1;
+			}
+		}
+
+		if (ioctl(fd, T113_IO_SPI_IOC_SET_AO_ALL, &ao) < 0) {
+			perror("T113_IO_SPI_IOC_SET_AO_ALL");
+			close(fd);
+			return 1;
+		}
+
+		puts("AO all channels configured");
 	} else if (strcmp(cmd, "ai-all") == 0) {
 		struct t113_io_spi_words16 ai;
 
