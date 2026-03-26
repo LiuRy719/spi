@@ -22,6 +22,7 @@ static void usage(const char *prog)
 		"  %s [-D dev] ao-ch <channel>\n"
 		"  %s [-D dev] ao-set <channel> <value>\n"
 		"  %s [-D dev] ao-set-all <v0> <v1> <v2> <v3> <v4> <v5> <v6> <v7>\n"
+		"  %s [-D dev] ai-mode-set <value>\n"
 		"  %s [-D dev] ai-all\n"
 		"  %s [-D dev] ai-ch <channel>\n"
 		"  %s [-D dev] snapshot\n"
@@ -37,10 +38,11 @@ static void usage(const char *prog)
 		"  %s ao-ch 2\n"
 		"  %s ao-set 2 0x3FFC\n"
 		"  %s ao-set-all 0x0000 0x0100 0x0200 0x0300 0x0400 0x0500 0x0600 0x0700\n"
+		"  %s ai-mode-set 0x0000\n"
 		"  %s ai-ch 3\n"
 		"  %s snapshot\n",
-		prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
-		prog, prog, prog, prog, prog, prog, prog, prog, prog);
+		prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
+		prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 static int parse_u16(const char *arg, uint16_t *value)
@@ -99,12 +101,13 @@ static void dump_ao_words(const uint16_t *values)
 
 int main(int argc, char **argv)
 {
+	const char *prog = argv[0];
 	const char *dev = "/dev/t113-io-spi1.0";
 	const char *cmd;
 	int fd;
 
 	if (argc < 2) {
-		usage(argv[0]);
+		usage(prog);
 		return 1;
 	}
 
@@ -161,7 +164,7 @@ int main(int argc, char **argv)
 		uint16_t value;
 
 		if (argc != 2 || parse_u16(argv[1], &value) < 0) {
-			usage(argv[0]);
+			usage(prog);
 			close(fd);
 			return 1;
 		}
@@ -188,7 +191,7 @@ int main(int argc, char **argv)
 
 		if (argc != 2 || parse_u8(argv[1], &data.channel) < 0 ||
 		    data.channel >= T113_IO_SPI_AO_CHANNELS) {
-			usage(argv[0]);
+			usage(prog);
 			close(fd);
 			return 1;
 		}
@@ -207,7 +210,7 @@ int main(int argc, char **argv)
 		    parse_u16(argv[2], &data.value) < 0 ||
 		    data.channel >= T113_IO_SPI_AO_CHANNELS ||
 		    data.value > T113_IO_SPI_AO_VALUE_MASK) {
-			usage(argv[0]);
+			usage(prog);
 			close(fd);
 			return 1;
 		}
@@ -224,7 +227,7 @@ int main(int argc, char **argv)
 		int i;
 
 		if (argc != T113_IO_SPI_AO_CHANNELS + 1) {
-			usage(argv[0]);
+			usage(prog);
 			close(fd);
 			return 1;
 		}
@@ -232,7 +235,7 @@ int main(int argc, char **argv)
 		for (i = 0; i < T113_IO_SPI_AO_CHANNELS; i++) {
 			if (parse_u16(argv[i + 1], &ao.words[i]) < 0 ||
 			    ao.words[i] > T113_IO_SPI_AO_VALUE_MASK) {
-				usage(argv[0]);
+				usage(prog);
 				close(fd);
 				return 1;
 			}
@@ -245,6 +248,22 @@ int main(int argc, char **argv)
 		}
 
 		puts("AO all channels configured");
+	} else if (strcmp(cmd, "ai-mode-set") == 0) {
+		uint16_t value;
+
+		if (argc != 2 || parse_u16(argv[1], &value) < 0) {
+			usage(prog);
+			close(fd);
+			return 1;
+		}
+
+		if (ioctl(fd, T113_IO_SPI_IOC_SET_AI_MODE, &value) < 0) {
+			perror("T113_IO_SPI_IOC_SET_AI_MODE");
+			close(fd);
+			return 1;
+		}
+
+		printf("AI mode set to 0x%04X\n", value);
 	} else if (strcmp(cmd, "ai-all") == 0) {
 		struct t113_io_spi_words16 ai;
 
@@ -259,7 +278,7 @@ int main(int argc, char **argv)
 		struct t113_io_spi_channel_data data = { 0 };
 
 		if (argc != 2 || parse_u8(argv[1], &data.channel) < 0) {
-			usage(argv[0]);
+			usage(prog);
 			close(fd);
 			return 1;
 		}
@@ -292,7 +311,7 @@ int main(int argc, char **argv)
 		dump_ai_words(snap.ai);
 		dump_ao_words(snap.ao);
 	} else {
-		usage(argv[0]);
+		usage(prog);
 		close(fd);
 		return 1;
 	}
