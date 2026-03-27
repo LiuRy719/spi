@@ -25,6 +25,9 @@ static void usage(const char *prog)
 		"  %s [-D dev] ai-mode-set <value>\n"
 		"  %s [-D dev] ai-all\n"
 		"  %s [-D dev] ai-ch <channel>\n"
+		"  %s [-D dev] input-state\n"
+		"  %s [-D dev] output-state\n"
+		"  %s [-D dev] output-state-set <ao0> <ao1> <ao2> <ao3> <ao4> <ao5> <ao6> <ao7> <dout>\n"
 		"  %s [-D dev] snapshot\n"
 		"\n"
 		"Defaults:\n"
@@ -40,9 +43,12 @@ static void usage(const char *prog)
 		"  %s ao-set-all 0x0000 0x0100 0x0200 0x0300 0x0400 0x0500 0x0600 0x0700\n"
 		"  %s ai-mode-set 0x0000\n"
 		"  %s ai-ch 3\n"
+		"  %s input-state\n"
+		"  %s output-state\n"
+		"  %s output-state-set 0x0100 0x0200 0x0300 0x0400 0x0500 0x0600 0x0700 0x0800 0x0001\n"
 		"  %s snapshot\n",
-		prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
-		prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
+		prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog,
+		prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog, prog);
 }
 
 static int parse_u16(const char *arg, uint16_t *value)
@@ -297,6 +303,60 @@ int main(int argc, char **argv)
 			       (data.value & T113_IO_SPI_AI_CURRENT_MODE_MASK) ?
 			       "current" : "voltage",
 			       data.value & T113_IO_SPI_AI_VALUE_MASK);
+	} else if (strcmp(cmd, "input-state") == 0) {
+		struct t113_io_spi_input_state input_state;
+
+		if (ioctl(fd, T113_IO_SPI_IOC_GET_INPUT_STATE, &input_state) < 0) {
+			perror("T113_IO_SPI_IOC_GET_INPUT_STATE");
+			close(fd);
+			return 1;
+		}
+
+		printf("DIN = 0x%04X\n", input_state.din);
+		dump_ai_words(input_state.ai);
+	} else if (strcmp(cmd, "output-state") == 0) {
+		struct t113_io_spi_output_state output_state;
+
+		if (ioctl(fd, T113_IO_SPI_IOC_GET_OUTPUT_STATE, &output_state) < 0) {
+			perror("T113_IO_SPI_IOC_GET_OUTPUT_STATE");
+			close(fd);
+			return 1;
+		}
+
+		printf("DOUT = 0x%04X\n", output_state.dout);
+		dump_ao_words(output_state.ao);
+	} else if (strcmp(cmd, "output-state-set") == 0) {
+		struct t113_io_spi_output_state output_state = { 0 };
+		int i;
+
+		if (argc != T113_IO_SPI_AO_CHANNELS + 2) {
+			usage(prog);
+			close(fd);
+			return 1;
+		}
+
+		for (i = 0; i < T113_IO_SPI_AO_CHANNELS; i++) {
+			if (parse_u16(argv[i + 1], &output_state.ao[i]) < 0 ||
+			    output_state.ao[i] > T113_IO_SPI_AO_VALUE_MASK) {
+				usage(prog);
+				close(fd);
+				return 1;
+			}
+		}
+
+		if (parse_u16(argv[T113_IO_SPI_AO_CHANNELS + 1], &output_state.dout) < 0) {
+			usage(prog);
+			close(fd);
+			return 1;
+		}
+
+		if (ioctl(fd, T113_IO_SPI_IOC_SET_OUTPUT_STATE, &output_state) < 0) {
+			perror("T113_IO_SPI_IOC_SET_OUTPUT_STATE");
+			close(fd);
+			return 1;
+		}
+
+		puts("AO+DOUT configured");
 	} else if (strcmp(cmd, "snapshot") == 0) {
 		struct t113_io_spi_snapshot snap;
 

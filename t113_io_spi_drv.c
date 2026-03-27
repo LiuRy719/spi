@@ -18,7 +18,7 @@
 #define T113_IO_SPI_MAX_XFER_WORDS	27
 #define T113_IO_SPI_DEFAULT_SPEED_HZ	500000U
 #define T113_IO_SPI_DUMMY_WORD		0xffff
-#define T113_IO_SPI_DRV_VERSION		"2026-03-26.3"
+#define T113_IO_SPI_DRV_VERSION		"2026-03-27.1"
 #define T113_IO_SPI_DEFAULT_WORD_DELAY_US 0U
 #define T113_IO_SPI_WRITE_RETRIES	5
 #define T113_IO_SPI_VERIFY_POLLS	4
@@ -51,7 +51,7 @@
 #define T113_IO_SPI_CMD_SET_AO_ALL_END	0xA547
 #define T113_IO_SPI_CMD_SET_AO_CH	0xA549
 #define T113_IO_SPI_RSP_SET_AO_CH	0xA548
-#define T113_IO_SPI_RSP_SET_AO_CH_ALT	0xA558
+#define T113_IO_SPI_RSP_SET_AO_CH_ALT	0xA548
 
 #define T113_IO_SPI_CMD_GET_INPUTS	0xA551
 #define T113_IO_SPI_RSP_GET_INPUTS_END	0xA552
@@ -540,6 +540,11 @@ static int t113_io_spi_set_output_state_locked(
 	u16 rx[T113_IO_SPI_AO_CHANNELS + 2];
 	size_t i;
 	int ret;
+
+	for (i = 0; i < T113_IO_SPI_AO_CHANNELS; i++) {
+		if (out->ao[i] > T113_IO_SPI_AO_VALUE_MASK)
+			return -EINVAL;
+	}
 
 	ret = t113_io_spi_xfer_word(tdev, T113_IO_SPI_CMD_SET_OUTPUTS, NULL);
 	if (ret)
